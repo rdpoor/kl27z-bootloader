@@ -71,6 +71,9 @@ void BOARD_InitUART(uint32_t baseAddr, uint32_t baud);
 // Shut down UART
 void BOARD_DeinitUART(uint32_t baseAddr);
 
+// Set UART baud rate depending on current run mode (RUN or VPLR)
+void BOARD_setBaudRate(uint32_t baud);
+
 // Write a buffer of bytes to the UART
 void BOARD_WriteUART(uint32_t baseAddr,
 		const uint8_t *buffer,

@@ -253,11 +253,11 @@ static void serial_configure_for_autobaud(const peripheral_descriptor_t *self) {
 
 static void serial_configure_for_uart(const peripheral_descriptor_t *self,
 		uint32_t baud) {
-    uint32_t baseAddr = g_lpsciBaseAddr[self->instance];
+    // uint32_t baseAddr = g_lpsciBaseAddr[self->instance];
     // TODO: passing in baseAddr is deceiving since the board specific code
     // makes hard-wired assumptions about which uart module is being enabled.
     // Maybe restructure.
-	BOARD_InitUART(baseAddr, baud);
+    BOARD_setBaudRate(baud);
 }
 
 #ifdef BL_FEATURE_BYPASS_AUTOBAUD

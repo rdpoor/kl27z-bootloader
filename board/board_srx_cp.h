@@ -39,7 +39,7 @@
  ******************************************************************************/
 
 #define BOOTLOADER_UART_BASEADDR (uint32_t) LPUART1
-#define BOOTLOADER_UART_CLKSRC kCLOCK_McgIrc48MClk
+#define BOOTLOADER_UART ((LPUART_Type *)BOOTLOADER_UART_BASEADDR)
 #define BOOTLOADER_UART_CLK_FREQ CLOCK_GetPeriphClkFreq()
 #define BOOTLOADER_UART_IRQ LPUART1_IRQn
 #define BOOTLOADER_UART_IRQ_HANDLER LPUART1_IRQHandler

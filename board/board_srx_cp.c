@@ -33,6 +33,7 @@
 #include "fsl_gpio.h"
 #include "fsl_lpuart.h"
 #include "fsl_port.h"
+#include "fsl_smc.h"
 
 #include "fsl_common.h"
 
@@ -66,6 +67,8 @@ typedef enum {
  * Variables
  ******************************************************************************/
 
+static bool s_uart_initialized = false;
+
 /*******************************************************************************
  * Code
  ******************************************************************************/
@@ -75,6 +78,7 @@ void BOARD_InitBoard() {
   CLOCK_EnableClock(kCLOCK_PortA);
   CLOCK_EnableClock(kCLOCK_PortC);
   CLOCK_EnableClock(kCLOCK_PortD);
+  // BOARD_BootClockVLPR();
   BOARD_BootClockRUN();
   
   // The Sensorex board has a PWM output that controls 4-20mA current draw.
@@ -123,9 +127,6 @@ void BOARD_DeinitBoard() {
 // TODO: passing in baseAddr is deceiving since the code makes hardwired
 // assumptions about which uart module is being enabled.  Maybe restructure.
 void BOARD_InitUART(uint32_t baseAddr, uint32_t baud) {
-  LPUART_Type *base = (LPUART_Type *)baseAddr;
-  lpuart_config_t config;
-
   // set up I/O ports and pins
   PORT_SetPinMux(PORTA, UART_RX_PIN, kPORT_MuxAlt3);
   PORT_SetPinMux(PORTA, UART_TX_PIN, kPORT_MuxAlt3);
@@ -135,17 +136,7 @@ void BOARD_InitUART(uint32_t baseAddr, uint32_t baud) {
                 | SIM_SOPT5_LPUART1RXSRC(SOPT5_LPUART1RXSRC_LPUART_RX) /* LPUART0 Receive Data Source Select: LPUART_RX pin */
                 );
   
-  CLOCK_SetLpuart1Clock(kUartClockIRC48M);
-  
-  LPUART_GetDefaultConfig(&config);
-  config.baudRate_Bps = baud;
-  config.enableRx = true;
-  config.enableTx = true;
-  if (LPUART_Init(base, &config, CLOCK_GetPeriphClkFreq()) == kStatus_Success)
-    {
-      LPUART_EnableInterrupts(base, kLPUART_RxDataRegFullInterruptEnable);
-      EnableIRQ(LPUART1_IRQn);
-    }
+  BOARD_setBaudRate(baud);
 }
 
 // Shut down UART.  In general, do things in reverse order from initialization.
@@ -155,10 +146,49 @@ void BOARD_DeinitUART(uint32_t baseAddr) {
   DisableIRQ(LPUART1_IRQn);
   LPUART_DisableInterrupts(base, kLPUART_RxDataRegFullInterruptEnable);
   LPUART_Deinit(base);
+  s_uart_initialized = false;
   SIM->SOPT5 = ((SIM->SOPT5 &
                  (~(SIM_SOPT5_LPUART1TXSRC_MASK | SIM_SOPT5_LPUART1RXSRC_MASK))));
   PORT_SetPinMux(PORTA, UART_TX_PIN, kPORT_PinDisabledOrAnalog);
   PORT_SetPinMux(PORTA, UART_RX_PIN, kPORT_PinDisabledOrAnalog);
+}
+
+// Call to set the baud rate OR whenever the power mode changes.  Sets the
+// LPUART clocks and baud rate appropriately for the current power mode.
+void BOARD_setBaudRate(uint32_t baud) {
+  uint32_t uart_clock_freq;
+  lpuart_config_t config;
+  smc_power_state_t power_state = SMC_GetPowerModeState(SMC);
+
+  // if uart is already initialized, de-init first
+  if (s_uart_initialized) {
+    LPUART_Deinit(BOOTLOADER_UART);
+    s_uart_initialized = false;
+  }
+
+  // set clock according to power mode
+  if (kSMC_PowerStateRun == power_state) {
+    CLOCK_SetLpuart1Clock(kUartClockIRC48M);
+    uart_clock_freq = CLOCK_GetFreq(kCLOCK_McgPeriphClk);
+  } else if (kSMC_PowerStateVlpr == power_state) {
+    CLOCK_SetLpuart1Clock(kUartClockMCGIRCLK);
+    uart_clock_freq = CLOCK_GetFreq(kCLOCK_McgInternalRefClk);
+  } else {
+    return;  // system error
+  }
+
+  LPUART_GetDefaultConfig(&config);
+  config.baudRate_Bps = baud;
+  config.enableRx = true;
+  config.enableTx = true;
+  if (kStatus_Success == LPUART_Init(BOOTLOADER_UART,
+                                     &config,
+                                     uart_clock_freq)) {
+    LPUART_EnableInterrupts(BOOTLOADER_UART,
+                            kLPUART_RxDataRegFullInterruptEnable);
+    EnableIRQ(LPUART1_IRQn);
+    s_uart_initialized = true;
+  }
 }
 
 // Sensorex UART requires a special write method for its RS485 interface.  It
