@@ -72,50 +72,50 @@ typedef enum {
 
 // Perform board-level initialization
 void BOARD_InitBoard() {
-	CLOCK_EnableClock(kCLOCK_PortA);
-	CLOCK_EnableClock(kCLOCK_PortC);
-	CLOCK_EnableClock(kCLOCK_PortD);
-	BOARD_BootClockRUN();
-
-    // The Sensorex board has a PWM output that controls 4-20mA current draw.
-	// Initialize PWM output to zero in order to minimize current draw.
-    PORT_SetPinMux(PWM_PORT, PWM_PIN, kPORT_MuxAsGpio);
-    gpio_pin_config_t config = { kGPIO_DigitalOutput, 0 };
-    GPIO_PinInit(PWM_GPIO, PWM_PIN, &config);
-
-    // The board has a serial enable pin that must be activated for serial I/O.
-    // (It gets disabled when the device is working in 4-20MA current loop mode
-    // to save current.)
-    PORT_SetPinMux(SERIAL_ENABLE_PORT, SERIAL_ENABLE_PIN, kPORT_MuxAsGpio);
-    GPIO_PinInit(SERIAL_ENABLE_GPIO, SERIAL_ENABLE_PIN, &config);
-    SERIAL_ENABLE();
-
-    // The Sensorex board uses RS485 half-duplex serial communication.  Before
-    // transmitting a character, the firmware must assert the drive enable gpio
-    // pin.  Conversely, to receive a character, drive enable must be de-
-    // asserted.
-    PORT_SetPinMux(RS485_DRIVE_ENABLE_PORT,
-    		RS485_DRIVE_ENABLE_PIN,
-    		kPORT_MuxAsGpio);
-    GPIO_PinInit(RS485_DRIVE_ENABLE_GPIO, RS485_DRIVE_ENABLE_PIN, &config);
-    RS485_DRIVE_DISABLE();  // initially listening...
+  CLOCK_EnableClock(kCLOCK_PortA);
+  CLOCK_EnableClock(kCLOCK_PortC);
+  CLOCK_EnableClock(kCLOCK_PortD);
+  BOARD_BootClockRUN();
+  
+  // The Sensorex board has a PWM output that controls 4-20mA current draw.
+  // Initialize PWM output to zero in order to minimize current draw.
+  PORT_SetPinMux(PWM_PORT, PWM_PIN, kPORT_MuxAsGpio);
+  gpio_pin_config_t config = { kGPIO_DigitalOutput, 0 };
+  GPIO_PinInit(PWM_GPIO, PWM_PIN, &config);
+  
+  // The board has a serial enable pin that must be activated for serial I/O.
+  // (It gets disabled when the device is working in 4-20MA current loop mode
+  // to save current.)
+  PORT_SetPinMux(SERIAL_ENABLE_PORT, SERIAL_ENABLE_PIN, kPORT_MuxAsGpio);
+  GPIO_PinInit(SERIAL_ENABLE_GPIO, SERIAL_ENABLE_PIN, &config);
+  SERIAL_ENABLE();
+  
+  // The Sensorex board uses RS485 half-duplex serial communication.  Before
+  // transmitting a character, the firmware must assert the drive enable gpio
+  // pin.  Conversely, to receive a character, drive enable must be de-
+  // asserted.
+  PORT_SetPinMux(RS485_DRIVE_ENABLE_PORT,
+                 RS485_DRIVE_ENABLE_PIN,
+                 kPORT_MuxAsGpio);
+  GPIO_PinInit(RS485_DRIVE_ENABLE_GPIO, RS485_DRIVE_ENABLE_PIN, &config);
+  RS485_DRIVE_DISABLE();  // initially listening...
 }
 
 // Perform board-level cleanup
 void BOARD_DeinitBoard() {
-    // kPORT_PinDisabledOrAnalog
-    PORT_SetPinMux(RS485_DRIVE_ENABLE_PORT,
-    		RS485_DRIVE_ENABLE_PIN,
-			kPORT_PinDisabledOrAnalog);
-    PORT_SetPinMux(SERIAL_ENABLE_PORT,
-    		SERIAL_ENABLE_PIN,
-			kPORT_PinDisabledOrAnalog);
-    PORT_SetPinMux(PWM_PORT, PWM_PIN, kPORT_PinDisabledOrAnalog);
-
-	BOARD_BootClockRUN();              // TODO: should be managed by bootloader?
-	CLOCK_DisableClock(kCLOCK_PortD);
-	CLOCK_DisableClock(kCLOCK_PortC);
-	CLOCK_DisableClock(kCLOCK_PortA);
+  // kPORT_PinDisabledOrAnalog
+  PORT_SetPinMux(RS485_DRIVE_ENABLE_PORT,
+                 RS485_DRIVE_ENABLE_PIN,
+                 kPORT_PinDisabledOrAnalog);
+  PORT_SetPinMux(SERIAL_ENABLE_PORT,
+                 SERIAL_ENABLE_PIN,
+                 kPORT_PinDisabledOrAnalog);
+  PORT_SetPinMux(PWM_PORT, PWM_PIN, kPORT_PinDisabledOrAnalog);
+  
+  BOARD_BootClockRUN();              // TODO: should be managed by bootloader?
+  CLOCK_DisableClock(kCLOCK_PortD);
+  CLOCK_DisableClock(kCLOCK_PortC);
+  CLOCK_DisableClock(kCLOCK_PortA);
 }
 
 // Initialize UART
@@ -123,42 +123,42 @@ void BOARD_DeinitBoard() {
 // TODO: passing in baseAddr is deceiving since the code makes hardwired
 // assumptions about which uart module is being enabled.  Maybe restructure.
 void BOARD_InitUART(uint32_t baseAddr, uint32_t baud) {
-    LPUART_Type *base = (LPUART_Type *)baseAddr;
-	lpuart_config_t config;
+  LPUART_Type *base = (LPUART_Type *)baseAddr;
+  lpuart_config_t config;
 
-    // set up I/O ports and pins
-    PORT_SetPinMux(PORTA, UART_RX_PIN, kPORT_MuxAlt3);
-    PORT_SetPinMux(PORTA, UART_TX_PIN, kPORT_MuxAlt3);
-    SIM->SOPT5 = ((SIM->SOPT5 &
-      (~(SIM_SOPT5_LPUART1TXSRC_MASK | SIM_SOPT5_LPUART1RXSRC_MASK))) /* Mask bits to zero which are setting */
-        | SIM_SOPT5_LPUART1TXSRC(SOPT5_LPUART1TXSRC_LPUART_TX) /* LPUART0 Transmit Data Source Select: LPUART0_TX pin */
-        | SIM_SOPT5_LPUART1RXSRC(SOPT5_LPUART1RXSRC_LPUART_RX) /* LPUART0 Receive Data Source Select: LPUART_RX pin */
-      );
-
-    CLOCK_SetLpuart1Clock(kUartClockIRC48M);
-
-    LPUART_GetDefaultConfig(&config);
-    config.baudRate_Bps = baud;
-    config.enableRx = true;
-    config.enableTx = true;
-    if (LPUART_Init(base, &config, CLOCK_GetPeriphClkFreq()) == kStatus_Success)
+  // set up I/O ports and pins
+  PORT_SetPinMux(PORTA, UART_RX_PIN, kPORT_MuxAlt3);
+  PORT_SetPinMux(PORTA, UART_TX_PIN, kPORT_MuxAlt3);
+  SIM->SOPT5 = ((SIM->SOPT5 &
+                 (~(SIM_SOPT5_LPUART1TXSRC_MASK | SIM_SOPT5_LPUART1RXSRC_MASK))) /* Mask bits to zero which are setting */
+                | SIM_SOPT5_LPUART1TXSRC(SOPT5_LPUART1TXSRC_LPUART_TX) /* LPUART0 Transmit Data Source Select: LPUART0_TX pin */
+                | SIM_SOPT5_LPUART1RXSRC(SOPT5_LPUART1RXSRC_LPUART_RX) /* LPUART0 Receive Data Source Select: LPUART_RX pin */
+                );
+  
+  CLOCK_SetLpuart1Clock(kUartClockIRC48M);
+  
+  LPUART_GetDefaultConfig(&config);
+  config.baudRate_Bps = baud;
+  config.enableRx = true;
+  config.enableTx = true;
+  if (LPUART_Init(base, &config, CLOCK_GetPeriphClkFreq()) == kStatus_Success)
     {
-        LPUART_EnableInterrupts(base, kLPUART_RxDataRegFullInterruptEnable);
-        EnableIRQ(LPUART1_IRQn);
+      LPUART_EnableInterrupts(base, kLPUART_RxDataRegFullInterruptEnable);
+      EnableIRQ(LPUART1_IRQn);
     }
 }
 
 // Shut down UART.  In general, do things in reverse order from initialization.
 void BOARD_DeinitUART(uint32_t baseAddr) {
-	LPUART_Type *base = (LPUART_Type *)baseAddr;
-
-	DisableIRQ(LPUART1_IRQn);
-	LPUART_DisableInterrupts(base, kLPUART_RxDataRegFullInterruptEnable);
-	LPUART_Deinit(base);
-	SIM->SOPT5 = ((SIM->SOPT5 &
-			(~(SIM_SOPT5_LPUART1TXSRC_MASK | SIM_SOPT5_LPUART1RXSRC_MASK))));
-    PORT_SetPinMux(PORTA, UART_TX_PIN, kPORT_PinDisabledOrAnalog);
-    PORT_SetPinMux(PORTA, UART_RX_PIN, kPORT_PinDisabledOrAnalog);
+  LPUART_Type *base = (LPUART_Type *)baseAddr;
+  
+  DisableIRQ(LPUART1_IRQn);
+  LPUART_DisableInterrupts(base, kLPUART_RxDataRegFullInterruptEnable);
+  LPUART_Deinit(base);
+  SIM->SOPT5 = ((SIM->SOPT5 &
+                 (~(SIM_SOPT5_LPUART1TXSRC_MASK | SIM_SOPT5_LPUART1RXSRC_MASK))));
+  PORT_SetPinMux(PORTA, UART_TX_PIN, kPORT_PinDisabledOrAnalog);
+  PORT_SetPinMux(PORTA, UART_RX_PIN, kPORT_PinDisabledOrAnalog);
 }
 
 // Sensorex UART requires a special write method for its RS485 interface.  It
@@ -166,24 +166,24 @@ void BOARD_DeinitUART(uint32_t baseAddr) {
 // would be treated as a received char) and then enable the TX drive line.
 // After sending the data, it reverses the process.
 void BOARD_WriteUART(uint32_t baseAddr,
-		const uint8_t *buffer,
-		uint32_t byteCount) {
+                     const uint8_t *buffer,
+                     uint32_t byteCount) {
     LPUART_Type *base = (LPUART_Type *)baseAddr;
 
-	// disable UART receive and set the drive enable line
-	base->CTRL &= ~LPUART_CTRL_RE_MASK;
-	RS485_DRIVE_ENABLE();
+    // disable UART receive and set the drive enable line
+    base->CTRL &= ~LPUART_CTRL_RE_MASK;
+    RS485_DRIVE_ENABLE();
 
-	// do the write.
+    // do the write.
     LPUART_WriteBlocking(base, buffer, byteCount);
 
     // wait until the buffer is empty and tx complete before dropping tx enable
     while((LPUART_GetStatusFlags(base) & TDRE_TC_MASK) != TDRE_TC_MASK) {
     }
 
-	// clear the drive enable line and enable UART reception
-	RS485_DRIVE_DISABLE();
-	base->CTRL |= LPUART_CTRL_RE_MASK;
+    // clear the drive enable line and enable UART reception
+    RS485_DRIVE_DISABLE();
+    base->CTRL |= LPUART_CTRL_RE_MASK;
 }
 
 #endif // #ifdef BOARD_SRX_CP
